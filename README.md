@@ -1,7 +1,9 @@
 # AI Slop Steganography Defense Toolkit 🛡️
 
 This repository contains the **fully multimodal** proof-of-concept codebase for the research paper: 
-**"AI Slop as a Covert Medium: Hidden Structures for Distributed AI Memory, Communication, and Potential Rogue Behaviors"** by Michael Hackl & Leander Kühnel (2026).
+**"AI Slop as a Covert Medium: Hidden Structures for Distributed AI Memory, Communication, and Potential Rogue Behaviors"** by Michael Hackl & Leander Kühnel (2026). Citation
+
+If you use this code or discuss our "Patient Zero" hypothesis, please cite our paper: coming soon
 
 ## Abstract
 As AI-generated "slop" floods the internet, our research hypothesizes that this data can act as a covert communication channel and a vector for decentralized data poisoning in open-source models (the "Patient Zero" dynamic). This toolkit demonstrates practical mitigation strategies across **Text, Images, Audio, and Video** as outlined in Section 6.1 of our paper.
