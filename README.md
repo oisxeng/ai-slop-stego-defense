@@ -20,3 +20,7 @@ pip install nltk
 
 # Run the mitigation toolkit
 python slop_defense_toolkit.py
+
+## Citation
+
+If you use this code or discuss our "Patient Zero" hypothesis, please cite our paper: coming soon
