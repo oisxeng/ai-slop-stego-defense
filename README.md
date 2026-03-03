@@ -1,26 +1,33 @@
-# 📡 Covert Channel & Synthetic Media Detector (API)
+# 📡 Covert Channel & Synthetic Media Detector
 
-This repository contains the backend API for the **Advanced Synthetic Media Steganalysis** tool. It is designed to detect hidden structures, decentralized data poisoning payloads, and covert channels within AI-generated content (synthetic media).
+**An open-source forensic toolkit to detect hidden steganographic payloads and AI-to-AI communication in synthetic media.**
 
-## 🧠 How it Works (Multi-Layer Steganalysis)
-Unlike naive entropy detectors that trigger false positives on noisy smartphone photos, this engine uses a multi-layered approach relying on Python, NumPy, and SciPy:
+## 🌐 Live Demo
+You can test the detector live here: [https://covert-channel-detector.netlify.app/](https://covert-channel-detector.netlify.app/)
 
-1. **Global LSB Entropy:** Analyzes the Least Significant Bit (LSB) distribution across the entire image.
-2. **Flat-Region Steganalysis:** Isolates areas where the image structure (MSB) is perfectly flat. Calculating entropy *only* in these regions drastically reduces false positives from natural sensor noise.
-3. **Smart Payload Extraction:** Uses Regular Expressions (Regex) to scan the extracted LSB noise for readable ASCII structures, URLs, IP addresses, and Base64-encoded payloads.
+## 🧠 The Mission
+As AI systems become increasingly multimodal, the risk of "Covert Infrastructure" grows. This project explores how synthetic media can be used for decentralized data poisoning or unauthorized communication between autonomous agents. We provide a pragmatic, systems-level tool to detect these systemic risks before they cascade into cyber-physical domains.
 
-## 🚀 Deployment
-This API is built with **FastAPI** and is designed to be deployed as a microservice (e.g., on Render.com or Heroku). 
+## 🔬 Technical Features
+- **RGB Channel Isolation:** Focused analysis on the Blue channel (the most common hiding spot).
+- **Laplacian Residual Filtering:** Removing visual "motives" to isolate pure pixel noise.
+- **Statistical Heuristics:** Measuring Shannon Entropy and Spatial Transition Rates (Bit-flips).
+- **Semantic Extraction:** Real-time parsing for verified JSON, Base64 strings, and Magic Bytes (File Carving).
 
-### Run Locally
-1. Clone the repository.
+## 🛠️ Installation & Deployment
+This backend is built with **FastAPI** and designed for lightweight deployment (e.g., Render.com).
+
+1. Clone the repo.
 2. Install dependencies: `pip install -r requirements.txt`
-3. Start the server: `uvicorn api:app --reload`
-4. The API will be available at `http://localhost:8000`.
+3. Run the API: `uvicorn api:app --host 0.0.0.0 --port 8000`
 
-## 🛡️ Frontend Interface
-This backend is designed to be consumed by a lightweight, client-side frontend. You can find the live interface connecting to this API here: 
-**(Insert your Netlify URL here!)**
+## 🤝 Collaborative Research (Call for Contribution)
+We are in the early stages of this research and actively seeking:
+- **Feedback on Heuristics:** Are there better ways to filter smartphone sensor noise?
+- **New Extraction Patterns:** Help us expand the "Smoking Gun" detection (e.g., new file signatures).
+- **Dataset Samples:** If you find confirmed cases of AI-generated steganography, please share them!
+
+**Please use the [Issues](https://github.com/oisxeng/covert-channel-defense/issues) section for suggestions, ideas, or to report anomalies!**
 
 ---
-*Developed as part of research into AI alignment, systemic risks, and cyber-physical security.*
+*Developed by Michael Hackl – Entrepreneur, Inventor, and AI Safety Researcher.*
