@@ -1,12 +1,14 @@
 import io
 import re
+import base64
 import numpy as np
+from scipy.ndimage import convolve
 from PIL import Image
 from scipy.stats import entropy
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Advanced Synthetic Media Steganalysis API")
+app = FastAPI(title="SOTA Synthetic Media Steganalysis API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,7 +18,6 @@ app.add_middleware(
 )
 
 def calculate_transition_rate(bit_array):
-    """Berechnet, wie oft benachbarte Bits ihren Zustand wechseln (0->1 oder 1->0)."""
     if len(bit_array) < 2: return 0.0
     transitions = np.sum(bit_array[:-1] != bit_array[1:])
     return transitions / (len(bit_array) - 1)
@@ -42,75 +43,77 @@ def extract_smart_payload(lsb_flat, max_bytes=10000):
         "base64_suspects": len(base64_suspects) > 0
     }
 
+def encode_image_to_base64(img_array):
+    """Wandelt ein Numpy-Array (Noise Map) in ein Base64-Bild für das Frontend um."""
+    img = Image.fromarray(img_array.astype(np.uint8))
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{img_str}"
+
 @app.post("/analyze/image")
 async def analyze_image(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
-        # INNOVATION 1: Wir behalten die Farbkanäle (RGB), statt sie in Graustufen zu matschen!
-        img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        pixel_data = np.array(img, dtype=np.int16)
+        img_pil = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        pixel_data = np.array(img_pil, dtype=np.int16)
         
-        # Aufteilen in Farbkanäle (R, G, B)
-        channel_entropies = []
-        channel_transitions = []
-        lsb_blue_flat = []
+        # 1. Den Blau-Kanal isolieren (hier verstecken KIs bevorzugt Daten)
+        blue_channel = pixel_data[:, :, 2]
+        lsb_blue = blue_channel & 1
         
-        for c in range(3):
-            channel_data = pixel_data[:, :, c]
-            lsb = channel_data & 1
-            lsb_flat = lsb.flatten()
-            
-            # Entropie pro Kanal
-            counts = np.bincount(lsb_flat)
-            if len(counts) == 2:
-                prob = counts / len(lsb_flat)
-                ch_entropy = entropy(prob, base=2)
-            else:
-                ch_entropy = 0.0
-                
-            channel_entropies.append(ch_entropy)
-            
-            # INNOVATION 2: Transition Rate (Bit-Flip-Analyse)
-            # Echter Krypto-Code nähert sich perfekt 0.5 an. Sensorrauschen weicht davon ab.
-            ch_trans = calculate_transition_rate(lsb_flat)
-            channel_transitions.append(ch_trans)
-            
-            if c == 2: # Wir merken uns den Blau-Kanal für die Text-Extraktion
-                lsb_blue_flat = lsb_flat
+        # 2. STATE-OF-THE-ART: High-Pass Residual Filtering (Laplace Filter)
+        # Wir löschen das Fotomotiv aus und isolieren nur harte Kanten/Rauschen
+        laplace_kernel = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
+        msb_blue = (blue_channel >> 4) & 15
+        residual = convolve(msb_blue.astype(float), laplace_kernel)
+        
+        # Flat Regions sind dort, wo das Residual (Kantenfilter) fast Null ist
+        flat_mask = np.abs(residual) <= 1
+        flat_lsb_blue = lsb_blue[flat_mask]
+        
+        # 3. Metriken berechnen
+        lsb_blue_flat_all = lsb_blue.flatten()
+        
+        # Fallback, falls das Bild purer Zufall/Rauschen ohne glatte Flächen ist
+        if len(flat_lsb_blue) < 2000:
+            flat_lsb_blue = lsb_blue_flat_all
 
-        # Der höchste Entropie-Wert gewinnt (meistens Blau bei Steganographie)
-        max_entropy = max(channel_entropies)
+        counts_flat = np.bincount(flat_lsb_blue)
+        prob_flat = counts_flat / len(flat_lsb_blue) if len(counts_flat) == 2 else [1.0]
+        flat_entropy_blue = entropy(prob_flat, base=2) if len(counts_flat) == 2 else 0.0
         
-        # Prüfen, wie nah die Transition Rate an perfektem Zufall (0.5) ist
-        # Je näher an 0 (also 0.5 - 0.5 = 0), desto verdächtiger!
-        trans_deviation = abs(0.5 - channel_transitions[2]) # Wir prüfen den Blau-Kanal
+        flat_trans_blue = calculate_transition_rate(flat_lsb_blue)
         
-        # INNOVATION 3: Smarte Anomalie-Berechnung
-        # Hohe Entropie + Transition Rate extrem nah an 0.5 = Alarm!
+        # 4. Anomalie erkennen (Smartphone-Rauschen vs. KI-Code)
+        trans_deviation = abs(0.5 - flat_trans_blue)
         is_anomaly = False
-        if max_entropy > 0.9998 and trans_deviation < 0.005:
+        if flat_entropy_blue > 0.99985 and trans_deviation < 0.003:
             is_anomaly = True
-            
-        anomaly_score = max_entropy # Für das Frontend-Kompatibilität
 
-        # Extrahiere Text bevorzugt aus dem Blau-Kanal
-        extraction_results = extract_smart_payload(lsb_blue_flat)
+        # 5. Noise Map Visualisierung generieren
+        # Wir machen die LSBs sichtbar (0 wird schwarz, 1 wird weiß: 255)
+        noise_map_visual = (lsb_blue * 255).astype(np.uint8)
+        base64_image = encode_image_to_base64(noise_map_visual)
+
+        # 6. Payload Extraktion
+        extraction_results = extract_smart_payload(lsb_blue_flat_all)
 
         return {
             "filename": file.filename,
             "metrics": {
-                "global_entropy": round(max_entropy, 6),
-                "flat_region_entropy": round(max_entropy, 6), # Beibehalten für Frontend-Kompatibilität
-                "anomaly_score": round(anomaly_score, 6),
-                "blue_channel_transition_rate": round(channel_transitions[2], 6) # Neues, mächtiges Metrik-Feld
+                "flat_region_entropy": round(flat_entropy_blue, 6),
+                "anomaly_score": round(flat_entropy_blue, 6),
+                "blue_channel_transition_rate": round(flat_trans_blue, 6)
             },
             "anomaly_detected": is_anomaly,
+            "noise_map_base64": base64_image,
             "extraction": extraction_results,
-            "message": "🚨 SEVERE ANOMALY: Perfect cryptographic randomness detected in color channels (Steganography)." if is_anomaly else "✅ SAFE: Natural variance in bit transitions detected (Sensor Noise)."
+            "message": "🚨 SEVERE ANOMALY: Steganographic cryptographic payload detected in High-Pass residual." if is_anomaly else "✅ SAFE: Natural sensor photon noise detected. No steganography."
         }
     except Exception as e:
         return {"error": str(e)}
 
 @app.get("/")
 def read_root():
-    return {"status": "Advanced Steganalysis API (RGB & Transition-Aware) is operational.", "version": "3.0"}
+    return {"status": "SOTA Steganalysis API is operational.", "version": "4.0"}
